@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import redis from "ioredis";
+import cors from "cors";
 dotenv.config();
 
 const redisClient = redis.createClient({
@@ -17,6 +18,15 @@ redisClient.on("end", () => {
 });
 
 const app = express();
+
+// Configurar CORS para permitir solicitudes desde http://localhost:5173
+app.use(cors({
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true // Permitir credenciales
+}));
+
 const errorHandlingMiddleware = (err, req, res, next) => {
   console.error(err);
   res.status(err.status || 500).send(err.message || "Internal server error");

@@ -3,13 +3,13 @@ import rateLimit from "express-rate-limit";
 import axios from "axios";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import Redis from "ioredis";
+import cors from "cors"; // Importa cors correctamente
 
 // Create a Redis client
 const redisClient = new Redis({
   host: process.env.REDIS_HOST || "127.0.0.1",
   port: process.env.REDIS_PORT || 6379,
 });
-
 
 redisClient.on("error", (error) => {
   console.error("Redis client error:", error);
@@ -20,6 +20,15 @@ redisClient.on("end", () => {
 });
 
 const app = express();
+
+// Configurar CORS para permitir solicitudes desde http://localhost:5173
+app.use(cors({
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true // Permitir credenciales
+}));
+
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 100, // limit each IP to 100 requests per windowMs
@@ -34,35 +43,47 @@ const authMiddleware = async (req, res, next) => {
   if (!authHeader) return res.status(401).send("Missing authorization header");
   const token = authHeader.split(" ")[1];
   
-  const tenant = req.query.tenant;
-  if (!tenant) return res.status(400).send("Missing tenant parameter");
-
-  
-  let cachedData = await redisClient.get(token);
-  if (cachedData) {
-    console.log("Using cached data");
-    return next();
+  let tenant = req.query.tenant;
+  if (!tenant) {
+    tenant = getTenantFromRequest(req);
   }
+  if (!tenant) return res.status(400).send("Missing tenant parameter");
+  console.log(`Tenant: ${tenant}`);
+  
   try {
+    // Check if token data is cached
+    let cachedData = await redisClient.get(token);
+    if (cachedData) {
+      cachedData = JSON.parse(cachedData);
+      const now = Math.floor(Date.now() / 1000);
+      if (cachedData.exp && cachedData.exp > now) {
+        console.log("Using cached data");
+        req.user = cachedData;
+        return next();
+      } else {
+        console.log("Token in cache has expired");
+        await redisClient.del(token);
+      }
+    }
+
+    // If not cached or expired, fetch data from auth service
     console.log("Fetching data from auth service");
     const response = await axios.get(`${authUrl}/verifyToken?tenant=${tenant}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const { data } = response;
 
-    //Getting data for authorization later on.
-    //apps, modulos, recursos y permisos (adjuntarlo al json de verify)
-    // Cual es mi criterio de busqueda en la bd.
-    //Criterio de busqueda , sessionid=token and userid.
-    
-    await redisClient.set(token, JSON.stringify(data));
-    next();
-
-  
+    // Store the data in cache with expiration
+    const expirationTime = data.exp - Math.floor(Date.now() / 1000);
+    if (expirationTime > 0) {
+      await redisClient.set(token, JSON.stringify(data), 'EX', expirationTime);
+      req.user = data;
+      next();
+    }
 
   } catch (error) {
-    console.log({ error });
-    console.log(`URL: ${authUrl}/verifyToken?tenant=${tenant}`)
+    console.error("Error during token verification:", error.response ? error.response.data : error.message);
+    console.error(`URL: ${authUrl}/verifyToken?tenant=${tenant}`);
     res.status(401).send("Invalid or expired token");
   }
 };
@@ -70,8 +91,8 @@ const authMiddleware = async (req, res, next) => {
 const asgardUrl = process.env.ASGARD_URL || "http://localhost:3002";
 const midgardUrl = process.env.MIDGARD_URL || "http://localhost:3002";
 const jotunheimUrl = process.env.JOTUNHEIM_URL || "http://localhost:3002";
-// Set up proxy middleware for each service
 
+// Set up proxy middleware for each service
 app.use(
   "/api/auth",
   createProxyMiddleware({
@@ -141,7 +162,6 @@ app.use(
     },
   })
 );
-
 
 const port = process.env.PORT || 3000;
 
