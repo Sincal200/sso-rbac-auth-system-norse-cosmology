@@ -91,6 +91,7 @@ const authMiddleware = async (req, res, next) => {
 const asgardUrl = process.env.ASGARD_URL || "http://localhost:3002";
 const midgardUrl = process.env.MIDGARD_URL || "http://localhost:3002";
 const jotunheimUrl = process.env.JOTUNHEIM_URL || "http://localhost:3002";
+const pipboyUrl = process.env.PIPBOY_URL || "http://localhost:3002";
 
 // Set up proxy middleware for each service
 app.use(
@@ -139,6 +140,24 @@ app.use(
     },
     onProxyReq: (proxyReq, req, res) => {
       if (req.method === "POST" && req.headers["content-type"]) {
+        proxyReq.setHeader("Content-Type", req.headers["content-type"]);
+      }
+    },
+  })
+);
+
+// Pipboy Proxy Rules
+app.use(
+  "/api/pip_boy",
+  authMiddleware,
+  createProxyMiddleware({
+    target: pipboyUrl,
+    changeOrigin: true,
+    pathRewrite: {
+      "^/api/pip_boy": "",
+    },
+    onProxyReq: (proxyReq, req, res) => {
+      if (["POST", "GET"].includes(req.method) && req.headers["content-type"]) {
         proxyReq.setHeader("Content-Type", req.headers["content-type"]);
       }
     },

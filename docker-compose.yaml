@@ -51,6 +51,7 @@ services:
       - ASGARD_URL=${ASGARD_URL}
       - MIDGARD_URL=${MIDGARD_URL}
       - JOTUNHEIM_URL=${JOTUNHEIM_URL}
+      - PIPBOY_URL=${PIPBOY_URL}
     depends_on:
       - redis
       - keycloak
@@ -110,6 +111,27 @@ services:
       - REDIS_PORT=${REDIS_PORT}
     depends_on:
       - auth-service
+
+  pip_boy:
+    build: ./realms/backend
+    ports:
+      - "8093:8093"
+    environment:
+      - PORT=8093
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+    depends_on:
+      - auth-service
+      - database
+
+  database:
+    image: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
 volumes:
+  mongodb_data:
   postgres_data:
     driver: local
