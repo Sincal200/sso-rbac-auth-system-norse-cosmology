@@ -21,6 +21,7 @@ services:
       KC_HEALTH_ENABLED: 'true'
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_FRONTEND_URL: ${KEYCLOAK_FRONTEND_URL}
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres/${POSTGRES_DB}
       KC_DB_USERNAME: ${POSTGRES_USER}
@@ -83,34 +84,6 @@ services:
       - REDIS_PORT=${REDIS_PORT}
     depends_on:
       - auth-service
-  
-  midgard:
-    image: midgard:latest
-    build:
-      context: ./realms/midgard
-      dockerfile: Dockerfile
-    ports:
-      - "8091:8091"
-    environment:
-      - PORT=8091
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-    depends_on:
-      - auth-service
-  
-  jotunheim:
-    image: jotunheim:latest
-    build:
-      context: ./realms/jotunheim
-      dockerfile: Dockerfile
-    ports:
-      - "8092:8092"
-    environment:
-      - PORT=8092
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-    depends_on:
-      - auth-service
 
   pip_boy:
     build: ./realms/backend
@@ -123,6 +96,20 @@ services:
     depends_on:
       - auth-service
       - database
+  
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    environment:
+      - KEYCLOAK_HOSTNAME=$KEYCLOAK_HOSTNAME
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - /etc/letsencrypt:/etc/letsencrypt
+    depends_on:
+      - keycloak
 
   database:
     image: mongo
