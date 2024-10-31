@@ -41,6 +41,6 @@ server.on('upgrade', (request, socket, head) => {
 });
 
 const port = process.env.PORT || 3002;
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Asgard listening on port ${port}`);
 });

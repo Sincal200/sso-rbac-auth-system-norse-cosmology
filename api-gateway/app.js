@@ -31,7 +31,7 @@ app.use(cors({
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 600000, // limit each IP to 100 requests per windowMs
   message: "Too many requests, please try again later.",
 });
 app.use(apiLimiter);
@@ -148,17 +148,23 @@ app.use(
 
 // Pipboy Proxy Rules
 app.use(
-  "/api/pip_boy",
-  authMiddleware,
+  '/api/pip_boy',
+  (req, res, next) => {
+    if (req.headers.upgrade && req.headers.upgrade === 'websocket') {
+      return next();
+    }
+    authMiddleware(req, res, next);
+  },
   createProxyMiddleware({
     target: pipboyUrl,
     changeOrigin: true,
+    ws: true,
     pathRewrite: {
-      "^/api/pip_boy": "",
+      '^/api/pip_boy': '',
     },
     onProxyReq: (proxyReq, req, res) => {
-      if (["POST", "GET"].includes(req.method) && req.headers["content-type"]) {
-        proxyReq.setHeader("Content-Type", req.headers["content-type"]);
+      if (['POST', 'GET'].includes(req.method) && req.headers['content-type']) {
+        proxyReq.setHeader('Content-Type', req.headers['content-type']);
       }
     },
   })
