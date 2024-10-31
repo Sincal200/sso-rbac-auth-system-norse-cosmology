@@ -8,33 +8,40 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - keycloak-network
 
   keycloak:
     image: quay.io/keycloak/keycloak:23.0.6
     command: start
     environment:
-      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME}
       KC_HOSTNAME_PORT: ${KEYCLOAK_PORT}
-      KC_HOSTNAME_STRICT_BACKCHANNEL: 'false'
-      KC_HTTP_ENABLED: 'true'
-      KC_HOSTNAME_STRICT_HTTPS: 'false'
-      KC_HEALTH_ENABLED: 'true'
+      KC_HOSTNAME_URL: ${KC_HOSTNAME_URL}
+      KC_HOSTNAME_STRICT_HTTPS: "true"
+      KC_HOSTNAME_STRICT_BACKCHANNEL: "true"
+      KC_PROXY: edge
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_FRONTEND_URL: ${KEYCLOAK_FRONTEND_URL}
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres/${POSTGRES_DB}
       KC_DB_USERNAME: ${POSTGRES_USER}
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - 8080:8080
+      - 8443:8443
     restart: always
     depends_on:
       - postgres
+    networks:
+      - keycloak-network
 
   redis:
     image: redis:alpine
     ports:
       - "6379:6379"
+    networks:
+      - keycloak-network
 
   api-gateway:
     image: api-gateway:latest
@@ -55,6 +62,9 @@ services:
     depends_on:
       - redis
       - keycloak
+      - nginx
+    networks:
+      - keycloak-network
 
   auth-service:
     image: auth-service:latest
@@ -69,21 +79,9 @@ services:
     depends_on:
       - keycloak
       - api-gateway
+    networks:
+      - keycloak-network
   
-  asgard:
-    image: asgard:latest
-    build:
-      context: ./realms/asgard
-      dockerfile: Dockerfile
-    ports:
-      - "8090:8090"
-    environment:
-      - PORT=8090
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-    depends_on:
-      - auth-service
-
   pip_boy:
     build: ./realms/backend
     ports:
@@ -95,12 +93,14 @@ services:
     depends_on:
       - auth-service
       - database
+    networks:
+      - keycloak-network
   
   nginx:
     image: nginx:latest
     container_name: nginx
     environment:
-      - KEYCLOAK_HOSTNAME=$KEYCLOAK_HOSTNAME
+      - KEYCLOAK_HOSTNAME=${KEYCLOAK_HOSTNAME}
     ports:
       - "80:80"
       - "443:443"
@@ -109,6 +109,8 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt
     depends_on:
       - keycloak
+    networks:
+      - keycloak-network
 
   database:
     image: mongo
@@ -116,8 +118,14 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
+    networks:
+      - keycloak-network
 
 volumes:
   mongodb_data:
   postgres_data:
     driver: local
+
+networks:
+  keycloak-network:
+    driver: bridge

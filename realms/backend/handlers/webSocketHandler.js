@@ -51,7 +51,18 @@ wss.on('connection', (ws) => {
     });
 
     ws.send('Conexión establecida con el servidor WebSocket');
+
+     // Enviar pings periódicos para mantener la conexión activa
+     const pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.ping();
+        } else {
+            clearInterval(pingInterval);
+        }
+    }, 30000); // Enviar un ping cada 30 segundos
 });
+
+
 
 const getSensorData = () => sensorData;
 const getHeartRateData = () => heartRateData;

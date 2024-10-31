@@ -21,7 +21,7 @@ const app = express();
 
 // Configurar CORS para permitir solicitudes desde http://localhost:5173
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: 'http://64.227.110.203:5173',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true // Permitir credenciales

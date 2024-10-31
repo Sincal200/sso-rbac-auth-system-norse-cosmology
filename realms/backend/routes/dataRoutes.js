@@ -13,9 +13,7 @@ const { create, test, getAll, startTemperature, stopTemperature,
   authenticate} = require('../controllers/dataController');
 
 const allowedOrigins = [
-  'https://pipboy-frontend.onrender.com',
-  'http://localhost:5173',
-  'http://64.227.110.203:5173',
+  'http://64.227.110.203:5173'
 ];
 
 const corsOptions = {
