@@ -6,9 +6,23 @@ const WebSocket = require('ws');
 const { wss } = require('./handlers/webSocketHandler');
 const session = require('express-session');
 const cookieParser = require('cookie-parser'); // Importar cookie-parser
-
+const redis = require('ioredis');
 
 const app = express();
+
+// Configurar Redis
+const redisClient = redis.createClient({
+  host: process.env.REDIS_HOST || '127.0.0.1',
+  port: process.env.REDIS_PORT || 6379,
+});
+
+redisClient.on('error', (error) => {
+  console.error('Redis client error:', error);
+});
+
+redisClient.on('end', () => {
+  console.log('Redis client connection closed');
+});
 
 // Configurar el middleware de sesión
 app.use(session({
@@ -20,7 +34,34 @@ app.use(session({
 
 app.use(cookieParser());
 
+// Middleware de autenticación
+app.use(async (req, res, next) => {
+  try {
+    const token = req.headers.authorization.split(' ')[1];
+    const userDataString = await redisClient.get(token);
+    if (userDataString) {
+      req.user = JSON.parse(userDataString);
+      next();
+    } else {
+      res.status(401).send('Invalid or expired user key');
+    }
+  } catch (err) {
+    res.status(401).send('Authentication failed');
+  }
+});
 
+// Middleware de autorización
+const authorizationMiddleware = (requiredRole) => {
+  return async (req, res, next) => {
+    try {
+      const availableRoles = req.user.realm_access.roles;
+      if (!availableRoles.includes(requiredRole)) throw new Error();
+      next();
+    } catch (err) {
+      res.status(403).send({ error: 'access denied' });
+    }
+  };
+};
 
 mongoose.connect(process.env.MONGO_URL, {})
   .then(() => console.log('Connected to MongoDB'))
